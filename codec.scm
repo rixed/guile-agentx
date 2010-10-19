@@ -2,14 +2,12 @@
 ;;; This file implements the various required (en)coders for AgentX.
 ;;; All encoders write input structures to default output port, while
 ;;; all decoders read input stream from default input port.
-;;; Byte ordering is always big endian for now (since it works with
-;;; the ip-address type, but in the future we would something like :
-;;; (with-little-endian-encoding (...))
 
 (define-module (agentx tools))
 (export ignore
         match-prefix
-        match-internet-prefix)
+        match-internet-prefix
+        endianness)
 
 
 ;;;
@@ -27,6 +25,9 @@
         (else #f)))
 
 (define (match-internet-prefix lst) (match-prefix '(1 3 6 1) lst))
+
+(define endianness (make-fluid))
+(fluid-set! endianness 'big)
 
 
 ;;;
@@ -58,7 +59,10 @@
     (byte b0)
     (byte b1)))
 
-(define half-word half-word-big-endian)
+(define (half-word w)
+  ((case (fluid-ref endianness)
+    ((big)    half-word-big-endian)
+    ((little) half-word-little-endian)) w))
 
 (define (word-big-endian w)
   (let ((b0 (logand #xFFFF w))
@@ -72,7 +76,10 @@
     (half-word b0)
     (half-word b1)))
 
-(define word word-big-endian)
+(define (word w)
+  ((case (fluid-ref endianness)
+     ((big)    word-big-endian)
+     ((little) word-little-endian)) w))
 
 (define (double-word-big-endian w)
   (let ((b0 (logand #xFFFFFFFF w))
@@ -86,7 +93,10 @@
     (word b0)
     (word b1)))
 
-(define double-word double-word-big-endian)
+(define (double-word w)
+  ((case (fluid-ref endianness)
+     ((big)    double-word-big-endian)
+     ((little) double-word-little-endian)) w))
 
 (define (word-list lst)
   (if (not (null? lst))
@@ -148,7 +158,10 @@
   ((cond ((memq type '(integer counter32 gauge32 time-ticks)) word)
          ((eq? type 'counter64) double-word)
          ((eq? type 'object-identifier) object-identifier)
-         ((memq type '(ip-address opaque octet-string)) octet-string)
+         ((memq type '(opaque octet-string)) octet-string)
+         ((eq? type 'ip-address) (lambda (data)
+                                   (with-fluids ((endianness 'big))
+                                                (octet-string data))))
          (else ignore))
    data))
 
@@ -211,7 +224,6 @@
   (word packet-id)
   (word payload-len))
 
-
 ;;;
 ;;; Decoders
 ;;;
@@ -238,7 +250,10 @@
          (b1 (byte)))
     (logior b0 (ash b1 8))))
 
-(define half-word half-word-big-endian)
+(define (half-word)
+  (case (fluid-ref endianness)
+    ((big)    (half-word-big-endian))
+    ((little) (half-word-little-endian))))
 
 (define (word-big-endian)
   (let* ((b0 (half-word))
@@ -250,7 +265,10 @@
          (b1 (half-word)))
     (logior b0 (ash b1 16))))
 
-(define word word-big-endian)
+(define (word)
+  (case (fluid-ref endianness)
+    ((big)    (word-big-endian))
+    ((little) (word-little-endian))))
 
 (define (double-word-big-endian)
   (let* ((b0 (word))
@@ -262,7 +280,10 @@
          (b1 (word)))
     (logior b0 (ash b1 32))))
 
-(define double-word double-word-big-endian)
+(define (double-word)
+  (case (fluid-ref endianness)
+    ((big)    (double-word-big-endian))
+    ((little) (double-word-little-endian))))
 
 (define (word-list n)
   (if (eqv? 0 n)
@@ -320,7 +341,9 @@
   ((cond ((memq type '(integer counter32 gauge32 time-ticks)) word)
          ((eq? type 'counter64) double-word)
          ((eq? type 'object-identifier) object-identifier)
-         ((memq type '(ip-address opaque octet-string)) octet-string)
+         ((memq type '(opaque octet-string)) octet-string)
+         ((eq? type 'ip-address) (lambda () (with-fluids ((endianness 'big))
+                                                         (octet-string))))
          (else ignore))))
 
 (define (varbind)
