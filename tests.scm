@@ -1,5 +1,8 @@
 ; vim:syntax=scheme expandtab
-(load "codec.scm")
+(load "tools.scm")
+(load "encode.scm")
+(load "decode.scm")
+(load "session.scm")
 
 (use-syntax (ice-9 syncase))
 (define-syntax assert
@@ -43,6 +46,8 @@
 
 (assert (eqv? 6 ((@@ (agentx encode) flags->byte) '(new-index any-index))))
 
+(assert (string=? "\x06\0\0\0" (with-output-to-string (lambda () ((@@ (agentx encode) timeout) 6)))))
+
 ;; Test decoders
 
 (assert (eqv? 12 (with-input-from-string "\x0C" (lambda () ((@@ (agentx decode) byte))))))
@@ -59,20 +64,25 @@
 
 ;; Test encoding-decoding
 
+(define (connect-ios writer reader)
+  (with-input-from-string
+    (with-output-to-string writer)
+    reader))
+
 (define obj-id1 '(1 2 3 4 5))
 (define obj-id2 '(1 3 6 1 1 2 3))
 (let ((test (lambda (obj-id)
               (assert (equal? obj-id
-                              (with-input-from-string
-                                (with-output-to-string (lambda () ((@ (agentx encode) object-identifier) obj-id)))
+                              (connect-ios
+                                (lambda () ((@ (agentx encode) object-identifier) obj-id))
                                 (lambda () ((@ (agentx decode) object-identifier)))))))))
   (test obj-id1)
   (test obj-id2))
 
 (let ((test (lambda (str)
               (assert (string=? str
-                                (with-input-from-string
-                                  (with-output-to-string (lambda () ((@ (agentx encode) octet-string) str)))
+                                (connect-ios
+                                  (lambda () ((@ (agentx encode) octet-string) str))
                                   (lambda () ((@ (agentx decode) octet-string)))))))))
   (test "")
   (test "a")
@@ -88,18 +98,43 @@
 
 (let ((test (lambda (var)
               (assert (equal? var
-                              (with-input-from-string
-                                (with-output-to-string (lambda () (apply (@ (agentx encode) varbind) var)))
+                              (connect-ios
+                                (lambda () (apply (@ (agentx encode) varbind) var))
                                 (lambda () ((@ (agentx decode) varbind)))))))))
   (test varbind1)
   (test varbind2)
   (test varbind3)
   (test varbind4))
 
-(let ((args (list 'register-pdu (list 'new-index 'non-default-context) 1 2 3 4)))
+(let ((args (list 'register-pdu (list 'new-index 'non-default-context 'network-byte-order) 1 2 3 4)))
   (assert (equal? args
-                  (with-input-from-string
-                    (with-output-to-string (lambda () (apply (@ (agentx encode) pdu-header) args)))
-                    (lambda () ((@ (agentx decode) pdu-header)))))))
+                  (connect-ios
+                    (lambda () (apply (@ (agentx encode) pdu-header) args))
+                    (lambda () (call-with-values (lambda () ((@ (agentx decode) pdu-header))) list))))))
 
+;; Test Session
+
+(load "session.scm")
+
+(define getters #(('(1 2 3 1) (lambda () '(integer 666)))
+                  ('(1 2 3 2) (lambda () '(octet-string "foo")))
+                  ('(1 2 3 3) (lambda () '(counter64 123456789000)))))
+(define sess1 ((@ (agentx session) make-session) "test" '(1 2 3) getters))
+(assert (eq? ((@@ (agentx session) session-state) sess1) 'closed))
+(with-output-to-string (lambda () ((@ (agentx session) open) sess1)))
+(assert (eq? ((@@ (agentx session) session-state) sess1) 'opening))
+
+; Send a fake response with a session id
+
+(with-output-to-string
+  (lambda ()
+    (connect-ios
+      (lambda () ((@ (agentx session) response) 12345 1 2 0 'no-agentx-error 0))
+      (lambda () ((@ (agentx session) handle-pdu) sess1)))))
+(assert (eq? ((@@ (agentx session) session-state) sess1) 'registering))
+(assert (eq? ((@@ (agentx session) session-id) sess1) 12345))
+
+; TODO: send a fake response to the register
+
+(display "Ok\n")
 (exit 0)
