@@ -40,10 +40,15 @@
   (let* ((descr        (sess:session-descr (subagent-session subagent)))
          (new-subagent (make-subagent descr '() #()))
          (port         (subagent-port new-subagent))
-         (session      (subagent-session new-subagent)))
+         (session      (subagent-session new-subagent))
+         ; A function like with-current-ioports would be so much better !
+         (input   (current-input-port))
+         (output  (current-output-port)))
     (set-current-input-port port)
     (set-current-output-port port)
     (sess:open session)
     (sess:handle-pdu session 'response-pdu) ; wait answer to open-pdu
     (sess:notify session vars)
-    (sess:handle-pdu session 'response-pdu)))
+    (sess:handle-pdu session 'response-pdu)
+    (set-current-input-port input)
+    (set-current-output-port output)))
