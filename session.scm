@@ -6,13 +6,23 @@
 			 ((agentx decode) :renamer (symbol-prefix-proc 'dec:))
              ((agentx tools)  :renamer (symbol-prefix-proc 'tool:))
 			 (ice-9 receive))
-(export make-session
+(export snmp-trap-oid-0
+        sys-uptime-0
+        make-session
         session?
+        session-descr
+        session-id
+        session-state
+        session-subtree
         open
         register
         close
+        notify
         response
         handle-pdu)
+
+(define snmp-trap-oid-0 (list 1 3 6 1 6 3 1 1 4 1 0))
+(define sys-uptime-0 (list 1 3 6 1 2 1 1 3 0))
 
 ; getters is a vector of ((w x y z) procedure), in lexicographical order
 (define session-rtd        (make-record-type "session" '(descr id state subtree getters)))
@@ -108,6 +118,15 @@
 	(enc:pdu-header 'register-pdu '() session-id 0 packet-id payload-len)
 	(display payload)))
 
+(define (notify-pdu vars session-id)
+  (let* ((payload (with-output-to-string
+                    (lambda ()
+                      (enc:varbind-list vars))))
+         (payload-len (string-length payload))
+         (packet-id   (next-packet-id)))
+    (enc:pdu-header 'notify-pdu '() session-id 0 packet-id payload-len)
+    (display payload)))
+
 (define (open session)
   (if (not (eq? (session-state session) 'closed))
     (throw 'error "session already opened"))
@@ -119,9 +138,16 @@
   (set-session-state! session 'closed))
 
 (define (register session)
-  (register-pdu (session-subtree session) (session-id session))
-  (set-session-state! session 'registering))
+  (let ((subtree (session-subtree session)))
+    ; if subtree is null, don't register anything (usefull for sending just a notify)
+    (if (not (null? subtree))
+      (begin (register-pdu (session-subtree session) (session-id session))
+             (set-session-state! session 'registering))
+      (set-session-state! session 'opened))))
 
+(define (notify session vars)   ; vars is a list of (type oid data)
+  (notify-pdu vars (session-id session)))
+  
 (define (response session-id tx-id packet-id varbind-len error-code error-index)
   (enc:pdu-header 'response-pdu '() session-id tx-id packet-id (+ 8 varbind-len))
   (enc:word 0)  ; sysUpTime is ignored by master agent
@@ -205,9 +231,12 @@
         ((opened)      #t))   ; that's fine
       (throw 'session-error error index))))
 
-(define (handle-pdu session)
+(define (handle-pdu session . expected-type)
   (receive
 	(type flags sess-id tx-id packet-id payload-len) (dec:pdu-header)
+    (if (and (not (null? expected-type))
+             (not (eq? (car expected-type) type)))
+      (throw 'session-error "Unexpected answer of wrong type"))
     (with-fluids ((tool:endianness (tool:endianness-of-flags flags)))
                  ((case type
                     ((get-pdu)      handle-get)
@@ -216,4 +245,4 @@
                     ((response-pdu) handle-response)
                     (else           handle-unknown)) session flags sess-id tx-id packet-id payload-len))))
 
-
+; TODO: a mutex in the session to protect the fd (notify must not occur while serving a master agent request)
