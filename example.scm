@@ -1,3 +1,6 @@
+#!/bin/sh
+GUILE_LOAD_PATH=./ guile -l example.scm
+!#
 ; vim:syntax=scheme expandtab
 ;;; This file implements a simple net-snmp subagent
 

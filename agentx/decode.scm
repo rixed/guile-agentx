@@ -20,7 +20,7 @@
 (use-modules (agentx tools)
              (ice-9 format))
 
-(define debug #t)
+(define debug #f)
 
 (define (byte)
   (let ((char (char->integer (read-char))))

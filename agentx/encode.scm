@@ -20,7 +20,7 @@
              (ice-9 optargs)
              (ice-9 format))
 
-(define debug #t)
+(define debug #f)
 
 (define (byte b)
   (if debug (format (fdes->outport 2) ">~2,'0x" b))

@@ -1,8 +1,10 @@
+#!/usr/bin/env guile
+!#
 ; vim:syntax=scheme expandtab
-(load "tools.scm")
-(load "encode.scm")
-(load "decode.scm")
-(load "session.scm")
+(load "agentx/tools.scm")
+(load "agentx/encode.scm")
+(load "agentx/decode.scm")
+(load "agentx/session.scm")
 
 (use-syntax (ice-9 syncase))
 (define-syntax assert
@@ -114,7 +116,7 @@
 
 ;; Test Session
 
-(load "session.scm")
+(load "agentx/session.scm")
 
 (define getters #(('(1 2 3 1) (lambda () '(integer 666)))
                   ('(1 2 3 2) (lambda () '(octet-string "foo")))

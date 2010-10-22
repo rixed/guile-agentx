@@ -1,0 +1,2 @@
+Copy the agentx directory into your guile library dirercory (or export
+GUILE_LOAD_PATH set to the directory containing the agentx directory).
