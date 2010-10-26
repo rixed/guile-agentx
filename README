@@ -1,13 +1,12 @@
 Guile AgentX
 ============
 
-You have written a great piece of software, and of course you
-extended it with the Guile. Now it's time to add this little killer
-feature : the possibility to monitor your software via SNMP.
+You have written a great piece of software, and of course you extended it with
+the Guile. Now it's time to add this little killer feature: the possibility to
+monitor your software via SNMP.
 
-This is easy with this small library : run net-snmp (or any other
-SNMP master agent that implements the AgentX protocol) and implement
-your MIB within guile !
+This is easy with this small library: run net-snmp (or any other SNMP master
+agent that implements the AgentX protocol) and implement your MIB within guile !
 
-See the example.scm file for a exemple.
+See the example.scm file for an example.
 

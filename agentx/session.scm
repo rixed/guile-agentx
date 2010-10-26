@@ -21,8 +21,8 @@
         response
         handle-pdu)
 
-(define snmp-trap-oid-0 (list 1 3 6 1 6 3 1 1 4 1 0))
-(define sys-uptime-0 (list 1 3 6 1 2 1 1 3 0))
+(define snmp-trap-oid-0 '(1 3 6 1 6 3 1 1 4 1 0))
+(define sys-uptime-0    '(1 3 6 1 2 1 1 3 0))
 
 ; getters is a vector of ((w x y z) procedure), in lexicographical order
 (define session-rtd        (make-record-type "session" '(descr id state subtree getters)))
