@@ -3,9 +3,9 @@
 
 (define-module (agentx session))
 (use-modules ((agentx encode) :renamer (symbol-prefix-proc 'enc:))
-			 ((agentx decode) :renamer (symbol-prefix-proc 'dec:))
+             ((agentx decode) :renamer (symbol-prefix-proc 'dec:))
              ((agentx tools)  :renamer (symbol-prefix-proc 'tool:))
-			 (ice-9 receive))
+             (ice-9 receive))
 (export snmp-trap-oid-0
         sys-uptime-0
         make-session
@@ -39,29 +39,29 @@
 
 (define (vector-find pred vec)
   (letrec ((find-rec (lambda (n)
-					   (if (< n (vector-length vec))
-						 (if (pred (vector-ref vec n))
-						   n
-						   (find-rec (+ n 1)))
-						 #f))))
-	(find-rec 0)))
+                       (if (< n (vector-length vec))
+                         (if (pred (vector-ref vec n))
+                           n
+                           (find-rec (+ n 1)))
+                         #f))))
+    (find-rec 0)))
 
 ; returns the index in the vector of the getters
 (define (session-find-getter session oid)
   (let* ((getters   (session-getters session))
-		 (match-oid (lambda (getter)
-					  (let ((oid_ (car getter))
-							(get  (cdr getter)))
-						(equal? oid oid_)))))
-	(vector-find match-oid getters)))
+         (match-oid (lambda (getter)
+                      (let ((oid_ (car getter))
+                            (get  (cdr getter)))
+                        (equal? oid oid_)))))
+    (vector-find match-oid getters)))
 
 ; returns the getter function for this oid
 (define (session-get session oid)
   (let ((n       (session-find-getter session oid))
         (getters (session-getters session)))
-	(if n
-	  (cdr (vector-ref getters n))
-	  (throw 'no-such-oid oid))))
+    (if n
+      (cdr (vector-ref getters n))
+      (throw 'no-such-oid oid))))
 
 ; returns next oid after this one, or '() if we reached end of subtree
 (define (session-get-next session oid)
@@ -79,44 +79,44 @@
 
 (define next-packet-id
   (let ((id 0))
-	(lambda ()
-	  (set! id (+ id 1))
-	  id)))
+    (lambda ()
+      (set! id (+ id 1))
+      id)))
 
 (define default-timeout 60)
 
 (define (open-pdu descr)
   (let* ((payload (with-output-to-string
-					(lambda ()
-					  (enc:timeout default-timeout)
-					  (enc:object-identifier '())
-					  (enc:octet-string descr))))
-		 (payload-len (string-length payload))
-		 (packet-id   (next-packet-id)))
-	(enc:pdu-header 'open-pdu '() 0 0 packet-id payload-len)
-	(display payload)))
+                    (lambda ()
+                      (enc:timeout default-timeout)
+                      (enc:object-identifier '())
+                      (enc:octet-string descr))))
+         (payload-len (string-length payload))
+         (packet-id   (next-packet-id)))
+    (enc:pdu-header 'open-pdu '() 0 0 packet-id payload-len)
+    (display payload)))
 
 (define (close-pdu reason session-id)
   (let* ((payload (with-output-to-string
-					(lambda ()
-					  (enc:reason reason))))
-		 (payload-len (string-length payload))
-		 (packet-id   (next-packet-id)))
-	(enc:pdu-header 'close-pdu '() session-id 0 packet-id payload-len)
-	(display payload)))
+                    (lambda ()
+                      (enc:reason reason))))
+         (payload-len (string-length payload))
+         (packet-id   (next-packet-id)))
+    (enc:pdu-header 'close-pdu '() session-id 0 packet-id payload-len)
+    (display payload)))
 
 (define (register-pdu ids session-id)
   (let* ((payload (with-output-to-string
-					(lambda ()
+                    (lambda ()
                       (enc:byte default-timeout)
                       (enc:byte 127)
                       (enc:byte 0)  ; no range_subid
                       (enc:byte 0)
-					  (enc:object-identifier ids))))
-		 (payload-len (string-length payload))
-		 (packet-id   (next-packet-id)))
-	(enc:pdu-header 'register-pdu '() session-id 0 packet-id payload-len)
-	(display payload)))
+                      (enc:object-identifier ids))))
+         (payload-len (string-length payload))
+         (packet-id   (next-packet-id)))
+    (enc:pdu-header 'register-pdu '() session-id 0 packet-id payload-len)
+    (display payload)))
 
 (define (notify-pdu vars session-id)
   (let* ((payload (with-output-to-string
@@ -156,20 +156,20 @@
 
 (define (check-session session sess-id)
   (if (not (eqv? (session-id session) sess-id))
-	(begin (response-error 'parse-error)
-		   #f)
-	(if (not (eq? (session-state session) 'opened))
-	  (begin (response-error 'not-open)
-			 #f)
-	  #t)))
+    (begin (response-error 'parse-error)
+           #f)
+    (if (not (eq? (session-state session) 'opened))
+      (begin (response-error 'not-open)
+             #f)
+      #t)))
 
 ; write the varbind for the given oid
 (define (answer-oid session oid)
   (let* ((getter (session-get session oid))
-		 (result (getter))
-		 (type   (car result))
-		 (data   (cadr result)))
-	(enc:varbind type oid data)))
+         (result (getter))
+         (type   (car result))
+         (data   (cadr result)))
+    (enc:varbind type oid data)))
 
 ; write a varbind encoding end-of-mib-view
 (define (answer-end-of-mib session oid)
@@ -179,27 +179,27 @@
 (define (get-search-range session start stop)
   (answer-oid session start)
   (if (not (null? stop))
-	(let ((next (next-oid start)))
-	  (if (not (eqv? next stop))
-		(get-search-range session next stop)))))
+    (let ((next (next-oid start)))
+      (if (not (eqv? next stop))
+        (get-search-range session next stop)))))
 
 ; write the varbind-list corresponding to oids start (FIXME: stop is ignored for now)
 (define (get-next-search-range session start stop)
   (let ((next-oid (session-get-next session start)))
     (if (null? next-oid)
-	  (answer-end-of-mib session start)
-	  (answer-oid session next-oid))))
+      (answer-end-of-mib session start)
+      (answer-oid session next-oid))))
 
 ; read some searchrange and write the corresponding varbind list
 (define (foreach-search-ranges func session payload-len)
   (if (> payload-len 0)
-	(let* ((start (dec:object-identifier))
-		   (stop  (dec:object-identifier)))
-	  (func session start stop))))
+    (let* ((start (dec:object-identifier))
+           (stop  (dec:object-identifier)))
+      (func session start stop))))
 
 (define (handle-get session flags sess-id tx-id packet-id payload-len)
   (if (check-session session sess-id)
-	(let* ((varbind-str (with-output-to-string
+    (let* ((varbind-str (with-output-to-string
                           (lambda ()
                             (catch 'no-such-oid
                                    (lambda () (foreach-search-ranges get-search-range session payload-len))
@@ -211,11 +211,11 @@
 
 (define (handle-get-next session flags sess-id tx-id packet-id payload-len)
   (if (check-session session sess-id)
-	(let* ((varbind-str (with-output-to-string
-						  (lambda () (foreach-search-ranges get-next-search-range session payload-len))))
-		   (varbind-len (string-length varbind-str)))
-	  (response (session-id session) tx-id packet-id varbind-len 'no-agentx-error 0)
-	  (display varbind-str))))
+    (let* ((varbind-str (with-output-to-string
+                          (lambda () (foreach-search-ranges get-next-search-range session payload-len))))
+           (varbind-len (string-length varbind-str)))
+      (response (session-id session) tx-id packet-id varbind-len 'no-agentx-error 0)
+      (display varbind-str))))
 
 (define (handle-response session flags sess-id tx-id packet-id payload-len)
   (let* ((sys-uptime        (dec:word))
@@ -233,7 +233,7 @@
 
 (define (handle-pdu session . expected-type)
   (receive
-	(type flags sess-id tx-id packet-id payload-len) (dec:pdu-header)
+    (type flags sess-id tx-id packet-id payload-len) (dec:pdu-header)
     (if (and (not (null? expected-type))
              (not (eq? (car expected-type) type)))
       (throw 'session-error "Unexpected answer of wrong type"))
