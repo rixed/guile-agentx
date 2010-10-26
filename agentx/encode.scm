@@ -193,7 +193,7 @@
             (flags->byte (cdr flags)))))
 
 (define (pdu-header-flags flags)
-  (byte (flags->byte 
+  (byte (flags->byte
           (if (eq? (fluid-ref endianness) 'big)
             (cons 'network-byte-order flags)
             flags))))
@@ -239,4 +239,4 @@
                ((request-denied)          267)
                ((processing-error)        268)
                (else (throw 'error "Unknown error code")))))
- 
+
