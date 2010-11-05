@@ -173,7 +173,7 @@
   (let* ((getter (session-get session oid))
          (result (getter))
          (type   (car result))
-         (data   (cadr result)))
+         (data   (cdr result)))
     (enc:varbind type oid data)))
 
 ; write a varbind encoding end-of-mib-view
