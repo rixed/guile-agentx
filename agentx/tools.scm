@@ -6,7 +6,18 @@
         match-prefix
         match-internet-prefix
         endianness
-        endianness-of-flags)
+        endianness-of-flags
+        debug?
+        debug)
+(use-modules (ice-9 format))
+(define debug? #f)
+(use-syntax (ice-9 syncase))
+(define-syntax debug
+  (syntax-rules ()
+                ((debug fmt ...)
+                 (if debug? (begin
+                              (format (fdes->outport 2) fmt ...)
+                              (display "\n" (fdes->outport 2)))))))
 
 (define (ignore x) *unspecified*)
 

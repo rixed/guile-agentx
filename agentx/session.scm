@@ -4,7 +4,7 @@
 (define-module (agentx session))
 (use-modules ((agentx encode) :renamer (symbol-prefix-proc 'enc:))
              ((agentx decode) :renamer (symbol-prefix-proc 'dec:))
-             ((agentx tools)  :renamer (symbol-prefix-proc 'tool:))
+             (agentx tools)
              (ice-9 receive))
 (export snmp-trap-oid-0
         sys-uptime-0
@@ -48,17 +48,21 @@
 
 ; returns the index in the vector of the getters
 (define (session-find-getter session oid)
+  (debug "session-find-getter ~a" oid)
   (let* ((getters   (session-getters session))
          (match-oid (lambda (getter)
                       (let ((oid_ (car getter))
                             (get  (cdr getter)))
+                        (debug "  compare oids ~a and ~a" oid oid_)
                         (equal? oid oid_)))))
     (vector-find match-oid getters)))
 
 ; returns the getter function for this oid
 (define (session-get session oid)
+  (debug "session-get ~a" oid)
   (let ((n       (session-find-getter session oid))
         (getters (session-getters session)))
+    (debug "getter for oid ~a is ~a" oid n)
     (if n
       (cdr (vector-ref getters n))
       (throw 'no-such-oid oid))))
@@ -165,6 +169,7 @@
 
 ; write the varbind for the given oid
 (define (answer-oid session oid)
+  (debug "answer-oid ~a" oid)
   (let* ((getter (session-get session oid))
          (result (getter))
          (type   (car result))
@@ -237,7 +242,7 @@
     (if (and (not (null? expected-type))
              (not (eq? (car expected-type) type)))
       (throw 'session-error "Unexpected answer of wrong type"))
-    (with-fluids ((tool:endianness (tool:endianness-of-flags flags)))
+    (with-fluids ((endianness (endianness-of-flags flags)))
                  ((case type
                     ((get-pdu)      handle-get)
                     ((get-next-pdu) handle-get-next)

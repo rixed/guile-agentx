@@ -20,11 +20,9 @@
 (use-modules (agentx tools)
              (ice-9 format))
 
-(define debug #f)
-
 (define (byte)
   (let ((char (char->integer (read-char))))
-    (if debug (format (fdes->outport 2) "<~2,'0x" char))
+    (debug "< ~2,'0x" char)
     char))
 
 (define (half-word-big-endian)
@@ -82,8 +80,12 @@
          (prefix   (byte))
          (include  (byte))  ; FIXME: use this
          (reserved (byte))
-         (sub-ids  (word-list n-subid)))
-    (if (eqv? 0 prefix) sub-ids (cons 1 (cons 3 (cons 6 (cons 1 (cons prefix sub-ids))))))))
+         (sub-ids  (word-list n-subid))
+         (ids      (if (eqv? 0 prefix)
+                     sub-ids
+                     (cons 1 (cons 3 (cons 6 (cons 1 (cons prefix sub-ids))))))))
+    (debug "<object-identifier ~a" ids)
+    ids))
 
 (define (search-range)
   (cons (object-identifier)
@@ -100,7 +102,7 @@
       str)))
 
 (define (skip len)
-  (if debug (format (fdes->outport 2) "skip(~a)" len))
+  (debug "Skip ~a bytes" len)
   (if (> len 0) (begin (byte) (skip (- len 1)))))
 
 (define (octet-string)
@@ -142,6 +144,7 @@
          (reserved (half-word))
          (obj-id   (object-identifier))
          (data     (varbind-data type)))
+    (debug "<varbind type ~a, obj-id ~a, data ~a" type obj-id data)
     (list type obj-id data)))
 
 (define (varbind-list n)
@@ -195,6 +198,7 @@
              (transaction-id (word))
              (packet-id      (word))
              (payload-len    (word)))
+        (debug "<PDU type ~a, flags ~a" type flags)
         (values type flags session-id transaction-id packet-id payload-len)))))
 
 (define (timeout)

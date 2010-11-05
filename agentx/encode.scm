@@ -20,10 +20,8 @@
              (ice-9 optargs)
              (ice-9 format))
 
-(define debug #f)
-
 (define (byte b)
-  (if debug (format (fdes->outport 2) ">~2,'0x" b))
+  (debug "> ~2,'0x" b)
   (write-char (integer->char b)))
 
 (define (half-word-big-endian w)
@@ -87,6 +85,7 @@
   (let* ((suffix  (match-internet-prefix lst-id))
          (prefix  (if (list? suffix) (car suffix) 0))
          (lst     (if (list? suffix) (cdr suffix) lst-id)))
+    (debug ">object-identifier ~a" lst-id)
     (byte (length lst))
     (byte prefix)
     (byte include)
@@ -94,6 +93,7 @@
     (word-list lst)))
 
 (define (search-range lst-id1 lst-id2)
+  (debug ">search-range ~a - ~a" lst-id1 lst-id2)
   (object-identifier lst-id1)
   (object-identifier lst-id2))
 
@@ -113,6 +113,7 @@
   (let* ((len     (string-length str))
          (rest    (logand #b11 len))
          (padding (if (eqv? rest 0) 0 (- 4 rest))))
+    (debug ">octet-string ~a" str)
     (word len)
     (wstring str)
     (padd padding)))
@@ -146,6 +147,7 @@
    data))
 
 (define (varbind type name data)
+  (debug ">varbind ~a ~a ~a" type name data)
   (varbind-type type)
   (half-word 0)
   (object-identifier name)
@@ -199,6 +201,7 @@
             flags))))
 
 (define (pdu-header type flags session-id transaction-id packet-id payload-len)
+  (debug ">PDU type ~a, flags ~a" type flags)
   (byte 1)  ; version
   (pdu-header-type type)
   (pdu-header-flags flags)
