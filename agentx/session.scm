@@ -24,7 +24,7 @@
 (define snmp-trap-oid-0 '(1 3 6 1 6 3 1 1 4 1 0))
 (define sys-uptime-0    '(1 3 6 1 2 1 1 3 0))
 
-; getters is a vector of ((w x y z) procedure), in lexicographical order
+; getters is a procedure returning an list of (oid . procedure), in lexicographical order
 (define session-rtd        (make-record-type "session" '(descr id state subtree getters)))
 (define (make-session descr tree getters)
   ((record-constructor session-rtd '(descr state subtree getters)) descr 'closed tree getters))
@@ -37,51 +37,36 @@
 (define set-session-id!    (record-modifier session-rtd 'id))
 (define set-session-state! (record-modifier session-rtd 'state))
 
-(define (vector-find pred vec)
-  (letrec ((find-rec (lambda (n)
-                       (if (< n (vector-length vec))
-                         (if (pred (vector-ref vec n))
-                           n
-                           (find-rec (+ n 1)))
-                         #f))))
-    (find-rec 0)))
-
-; returns the index in the vector of the getters
-(define (session-find-getter session oid)
-  (debug "session-find-getter ~a" oid)
-  (let* ((getters   (session-getters session))
-         (match-oid (lambda (getter)
-                      (let ((oid_ (car getter))
-                            (get  (cdr getter)))
-                        (debug "  compare oids ~a and ~a" oid oid_)
-                        (equal? oid oid_)))))
-    (vector-find match-oid getters)))
-
 ; returns the getter function for this oid
 (define (session-get session oid)
   (debug "session-get ~a" oid)
-  (let ((n       (session-find-getter session oid))
-        (getters (session-getters session)))
-    (debug "getter for oid ~a is ~a" oid n)
-    (if n
-      (cdr (vector-ref getters n))
-      (throw 'no-such-oid oid))))
+  (letrec ((getters     ((session-getters session)))
+           (find-getter (lambda (getters)
+                          (if (null? getters) (throw 'no-such-oid oid))
+                          (let ((this-oid    (caar getters))
+                                (this-getter (cdar getters)))
+                            (debug "  comparing oid ~a and ~a" oid this-oid)
+                            (if (equal? oid this-oid)
+                              this-getter
+                              (find-getter (cdr getters)))))))
+    (find-getter getters)))
 
-; if included is false, returns next oid (lexicographicaly) after this one
-; if included is true, returns this oid if we have a getter for it, or the next one.
-; if not found, returns '()
+; if included is false, returns next (oid . getter) (lexicographicaly) after this one
+; if included is true, returns this (oid. getter) if we have a getter for it, or the next one.
+; if not found, throw no-such-oid
 (define (session-get-next session oid included)
-  (let ((getters (session-getters session))
-        (min-cmp (if included 0 1)))
-    (debug "session-get-next ~a (included: ~a)" oid included)
-    (letrec ((find-greater (lambda (n)
-                             (if (>= n (vector-length getters)) '()
-                               (let ((getter (car (vector-ref getters n))))
-                                 (debug "  Try getter ~a (oid ~a)" n getter)
-                                 (if (>= (oid-compare getter oid) min-cmp)
-                                   getter
-                                   (find-greater (+ n 1))))))))
-      (find-greater 0))))
+  (debug "session-get-next ~a (included: ~a)" oid included)
+  (letrec ((getters ((session-getters session)))
+           (min-cmp (if included 0 1))
+           (find-getter (lambda (getters)
+                          (if (null? getters) (throw 'no-such-oid oid))
+                          (let ((this-oid    (caar getters))
+                                (this-getter (cdar getters)))
+                            (debug "  comparing oid ~a and ~a" oid this-oid)
+                            (if (>= (oid-compare this-oid oid) min-cmp)
+                              (car getters)
+                              (find-getter (cdr getters)))))))
+    (find-getter getters)))
 
 (define next-packet-id
   (let ((id 0))
@@ -192,10 +177,11 @@
 
 ; write the varbind-list corresponding to oids start (FIXME: stop is ignored for now)
 (define (get-next-search-range session start included stop)
-  (let ((next-oid (session-get-next session start included)))
-    (if (null? next-oid)
-      (answer-end-of-mib session start)
-      (answer-oid session next-oid))))
+  (catch 'no-such-oid
+         (lambda ()
+           (answer-oid session (car (session-get-next session start included))))
+         (lambda (key oid)
+           (answer-end-of-mib session start))))
 
 ; read some searchrange and write the corresponding varbind list
 (define (foreach-search-ranges func session payload-len)
