@@ -1,6 +1,7 @@
 #!/usr/bin/env guile
 !#
 ; vim:syntax=scheme expandtab
+
 (load "agentx/tools.scm")
 (load "agentx/encode.scm")
 (load "agentx/decode.scm")
@@ -21,14 +22,20 @@
 
 ;; Test tools
 
+(display "Check tools\n")
 (assert (equal? ((@@ (agentx tools) match-prefix) '(1 2 3) '(1 2 3 4 5)) '(4 5)))
 (assert (eqv? ((@@ (agentx tools) match-prefix) '(1 2 3) '(3 2 1 1 1)) #f))
 (assert (eqv? ((@@ (agentx tools) match-prefix) '(1 2 3) '(1 2)) #f))
 (assert (equal? ((@@ (agentx tools) match-internet-prefix) '(1 3 6 1 2 3 4)) '(2 3 4)))
 (assert (eqv? ((@@ (agentx tools) match-internet-prefix) '(1 4 6 1 2 3 4)) #f))
+(assert (eqv? 0  ((@ (agentx tools) oid-compare) '(1 2 3) '(1 2 3))))
+(assert (eqv? 1  ((@ (agentx tools) oid-compare) '(1 2 3) '(1 2))))
+(assert (eqv? -1 ((@ (agentx tools) oid-compare) '(1 2 3) '(1 2 3 1))))
+(assert (eqv? 1  ((@ (agentx tools) oid-compare) '(1 2 3 0) '(1 2 3))))
 
 ;; Test encoders
 
+(display "Check encoders\n")
 (assert (string=? "\0" (with-output-to-string (lambda () ((@@ (agentx encode) byte) 0)))))
 (assert (string=? "A"  (with-output-to-string (lambda () ((@@ (agentx encode) byte) 65)))))
 (assert (string=? "AB" (with-output-to-string (lambda () ((@@ (agentx encode) byte) 65) ((@@ (agentx encode) byte) 66)))))
@@ -52,6 +59,7 @@
 
 ;; Test decoders
 
+(display "Check decoders\n")
 (assert (eqv? 12 (with-input-from-string "\x0C" (lambda () ((@@ (agentx decode) byte))))))
 (assert (eqv? #x1234 (with-input-from-string "\x12\x34" (lambda () ((@@ (agentx decode) half-word))))))
 (assert (eqv? #x12345678 (with-input-from-string "\x12\x34\x56\x78" (lambda () ((@@ (agentx decode) word))))))
@@ -66,6 +74,7 @@
 
 ;; Test encoding-decoding
 
+(display "Check enc/dec\n")
 (define (connect-ios writer reader)
   (with-input-from-string
     (with-output-to-string writer)
@@ -116,6 +125,7 @@
 
 ;; Test Session
 
+(display "Check session\n")
 (load "agentx/session.scm")
 
 (define getters #(('(1 2 3 1) (lambda () '(integer 666)))

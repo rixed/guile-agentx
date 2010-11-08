@@ -67,19 +67,21 @@
       (cdr (vector-ref getters n))
       (throw 'no-such-oid oid))))
 
-; returns next oid after this one, or '() if we reached end of subtree
-(define (session-get-next session oid)
-  (let ((getters (session-getters session)))
-    (if (equal? (session-subtree session) oid)
-      ; Return the oid of the first getter
-      (car (vector-ref getters 0))
-      ; Else look for this oid in our getters
-      (let ((n (session-find-getter session oid)))
-        (if n
-          (if (< n (- (vector-length getters) 1))
-            (car (vector-ref getters (+ n 1)))
-            '())
-          (throw 'no-such-oid oid))))))
+; if included is false, returns next oid (lexicographicaly) after this one
+; if included is true, returns this oid if we have a getter for it, or the next one.
+; if not found, returns '()
+(define (session-get-next session oid included)
+  (let ((getters (session-getters session))
+        (min-cmp (if included 0 1)))
+    (debug "session-get-next ~a (included: ~a)" oid included)
+    (letrec ((find-greater (lambda (n)
+                             (if (>= n (vector-length getters)) '()
+                               (let ((getter (car (vector-ref getters n))))
+                                 (debug "  Try getter ~a (oid ~a)" n getter)
+                                 (if (>= (oid-compare getter oid) min-cmp)
+                                   getter
+                                   (find-greater (+ n 1))))))))
+      (find-greater 0))))
 
 (define next-packet-id
   (let ((id 0))
@@ -181,16 +183,16 @@
   (enc:varbind 'end-of-mib-view oid ""))
 
 ; write the varbind-list corresponding to oids start to stop
-(define (get-search-range session start stop)
+(define (get-search-range session start included stop)
   (answer-oid session start)
   (if (not (null? stop))
     (let ((next (next-oid start)))
       (if (not (eqv? next stop))
-        (get-search-range session next stop)))))
+        (get-search-range session next #t stop)))))
 
 ; write the varbind-list corresponding to oids start (FIXME: stop is ignored for now)
-(define (get-next-search-range session start stop)
-  (let ((next-oid (session-get-next session start)))
+(define (get-next-search-range session start included stop)
+  (let ((next-oid (session-get-next session start included)))
     (if (null? next-oid)
       (answer-end-of-mib session start)
       (answer-oid session next-oid))))
@@ -198,9 +200,11 @@
 ; read some searchrange and write the corresponding varbind list
 (define (foreach-search-ranges func session payload-len)
   (if (> payload-len 0)
-    (let* ((start (dec:object-identifier))
-           (stop  (dec:object-identifier)))
-      (func session start stop))))
+    (let* ((range    (dec:search-range))
+           (start    (caar range))
+           (included (cdar range))
+           (stop     (cdr range)))
+      (func session start included stop))))
 
 (define (handle-get session flags sess-id tx-id packet-id payload-len)
   (if (check-session session sess-id)

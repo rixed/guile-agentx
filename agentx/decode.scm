@@ -7,6 +7,7 @@
         half-word
         word
         double-word
+        object-identifier-with-include
         object-identifier
         search-range
         octet-string
@@ -75,21 +76,29 @@
     (list)
     (cons (word) (word-list (- n 1)))))
 
-(define (object-identifier)
+(define (include)
+  (eqv? (byte) 1))
+
+(define (object-identifier-with-include)
   (let* ((n-subid  (byte))
          (prefix   (byte))
-         (include  (byte))  ; FIXME: use this
+         (include  (include))
          (reserved (byte))
          (sub-ids  (word-list n-subid))
          (ids      (if (eqv? 0 prefix)
                      sub-ids
                      (cons 1 (cons 3 (cons 6 (cons 1 (cons prefix sub-ids))))))))
-    (debug "<object-identifier ~a" ids)
-    ids))
+    (debug "<object-identifier ~a (included: ~a)" ids include)
+    (cons ids include)))
+
+(define (object-identifier)
+  (car (object-identifier-with-include)))
 
 (define (search-range)
-  (cons (object-identifier)
-        (object-identifier)))
+  (let* ((start-id-i (object-identifier-with-include))
+         (stop-id    (object-identifier)))
+    (debug "<search-range from ~a to ~a" start-id-i stop-id)
+    (cons start-id-i stop-id)))
 
 (define (rstring len)
   (let ((str        (make-string len)))

@@ -7,6 +7,7 @@
         match-internet-prefix
         endianness
         endianness-of-flags
+        oid-compare
         debug?
         debug)
 (use-modules (ice-9 format))
@@ -38,4 +39,13 @@
     'big
     'little))
 
+(define (oid-compare oid1 oid2)
+  (if (null? oid1)
+    (if (null? oid2) 0 -1)
+    (if (null? oid2) 1
+      (let ((h1 (car oid1))
+            (h2 (car oid2)))
+        (if (eqv? h1 h2)
+          (oid-compare (cdr oid1) (cdr oid2))
+          (if (< h1 h2) -1 1))))))
 
