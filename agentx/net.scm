@@ -2,7 +2,8 @@
 ;;; This file implements agentX subagent, connecting to local master.
 
 (define-module (agentx net))
-(use-modules ((agentx session)  :renamer (symbol-prefix-proc 'sess:)))
+(use-modules ((agentx session)  :renamer (symbol-prefix-proc 'sess:))
+             (agentx tools))
 (export make-subagent
         subagent?
         subagent-session
@@ -23,6 +24,7 @@
 (define (make-subagent descr tree getters)
   (let ((session (sess:make-session descr tree getters))
         (port    (connect-master)))
+    (debug "Using port ~a" port)
     ((record-constructor subagent-rtd '(session port)) session port)))
 
 (define (loop subagent)

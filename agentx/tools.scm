@@ -13,12 +13,21 @@
 (use-modules (ice-9 format))
 (define debug? #f)
 (use-syntax (ice-9 syncase))
+
+(define format-mutex (make-mutex))
+(define (format-safe . args)
+  (lock-mutex format-mutex)
+  (let* ((c       (car args))
+         (c_nl    (string-append (object->string (current-thread)) c "\n"))
+         (args_nl (cons c_nl (cdr args))))
+    (apply format (fdes->outport 2) args_nl))
+  (unlock-mutex format-mutex))
+
 (define-syntax debug
   (syntax-rules ()
                 ((debug fmt ...)
                  (if debug? (begin
-                              (format (fdes->outport 2) fmt ...)
-                              (display "\n" (fdes->outport 2)))))))
+                              ((@@ (agentx tools) format-safe) fmt ...))))))
 
 (define (ignore x) *unspecified*)
 

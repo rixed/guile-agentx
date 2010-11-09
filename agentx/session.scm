@@ -68,7 +68,7 @@
                               (find-getter (cdr getters)))))))
     (find-getter getters)))
 
-(define next-packet-id
+(define next-packet-id  ; FIXME: make me thread safe
   (let ((id 0))
     (lambda ()
       (set! id (+ id 1))
