@@ -167,7 +167,7 @@
 (define (answer-end-of-mib session oid)
   (enc:varbind 'end-of-mib-view oid ""))
 
-; write the varbind-list corresponding to oids start to stop
+; write the varbind-list corresponding to oids start to stop (stop is supposed to be null for get-next PDU)
 (define (get-search-range session start included stop)
   (answer-oid session start)
   (if (not (null? stop))
@@ -175,7 +175,7 @@
       (if (not (eqv? next stop))
         (get-search-range session next #t stop)))))
 
-; write the varbind-list corresponding to oids start (FIXME: stop is ignored for now)
+; write the varbind-list corresponding to oids start (FIXME: stop is ignored for now : session-get-next should check that the oid it find is < stop)
 (define (get-next-search-range session start included stop)
   (catch 'no-such-oid
          (lambda ()
@@ -184,30 +184,43 @@
            (answer-end-of-mib session start))))
 
 ; read some searchrange and write the corresponding varbind list
-(define (foreach-search-ranges func session payload-len)
-  (if (> payload-len 0)
+; current input port must have all the chars ready (and not more)
+(define (foreach-search-ranges func session)
+  (if (not (eof-object? (peek-char)))
     (let* ((range    (dec:search-range))
            (start    (caar range))
            (included (cdar range))
            (stop     (cdr range)))
-      (func session start included stop))))
+      (func session start included stop)
+      (foreach-search-ranges func session))))
+
+(define (read-chars len prevs)
+  (if (> len 0)
+    (read-chars (- len 1) (append prevs (list (read-char))))
+    (list->string prevs)))
 
 (define (handle-get session flags sess-id tx-id packet-id payload-len)
   (if (check-session session sess-id)
-    (let* ((varbind-str (with-output-to-string
+    (let* ((payload     (read-chars payload-len '()))
+           (varbind-str (with-output-to-string
                           (lambda ()
-                            (catch 'no-such-oid
-                                   (lambda () (foreach-search-ranges get-search-range session payload-len))
-                                   (lambda (key oid)
-                                     (enc:varbind 'no-such-instance oid ""))))))
+                            (with-input-from-string payload
+                              (lambda ()
+                                (catch 'no-such-oid
+                                       (lambda () (foreach-search-ranges get-search-range session))
+                                       (lambda (key oid)
+                                         (enc:varbind 'no-such-instance oid ""))))))))
            (varbind-len (string-length varbind-str)))
       (response (session-id session) tx-id packet-id varbind-len 'no-agentx-error 0)
       (display varbind-str))))
 
 (define (handle-get-next session flags sess-id tx-id packet-id payload-len)
   (if (check-session session sess-id)
-    (let* ((varbind-str (with-output-to-string
-                          (lambda () (foreach-search-ranges get-next-search-range session payload-len))))
+    (let* ((payload     (read-chars payload-len '()))
+           (varbind-str (with-output-to-string
+                          (lambda ()
+                            (with-input-from-string payload
+                              (lambda () (foreach-search-ranges get-next-search-range session))))))
            (varbind-len (string-length varbind-str)))
       (response (session-id session) tx-id packet-id varbind-len 'no-agentx-error 0)
       (display varbind-str))))

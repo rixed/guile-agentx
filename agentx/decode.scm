@@ -199,7 +199,7 @@
   (let* ((version        (byte))
          (type           (pdu-header-type))
          (flags          (pdu-header-flags)))
-    (if (not (eq? version 1)) (throw 'error "Bad version"))
+    (if (not (eq? version 1)) (throw 'error (simple-format #f "Bad version: ~a" version)))
     (with-fluids
       ((endianness (endianness-of-flags flags)))
       (let* ((reserved       (byte))
