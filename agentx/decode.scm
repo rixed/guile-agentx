@@ -76,13 +76,10 @@
     (list)
     (cons (word) (word-list (- n 1)))))
 
-(define (include)
-  (eqv? (byte) 1))
-
 (define (object-identifier-with-include)
   (let* ((n-subid  (byte))
          (prefix   (byte))
-         (include  (include))
+         (include  (eqv? (byte) 1))
          (reserved (byte))
          (sub-ids  (word-list n-subid))
          (ids      (if (eqv? 0 prefix)
