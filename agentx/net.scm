@@ -14,7 +14,12 @@
 ; returns the port where to read from/write to
 (define (connect-master)
   (let* ((sock (socket PF_UNIX SOCK_STREAM 0)))
-    (connect sock AF_UNIX "/var/agentx/master")
+    (catch #t (lambda ()
+                (connect sock AF_UNIX "/var/agentx/master"))
+           (lambda (k . a)
+             (simple-format #t "Cannot connect to agentx master: ~s ~s~%" k a)
+             (close-port sock)
+             (set! sock #f)))
     sock))
 
 (define subagent-rtd       (make-record-type "subagent" '(session port)))
