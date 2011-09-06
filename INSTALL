@@ -1,2 +1,4 @@
-Copy the agentx directory into your guile library directory (or export
-GUILE_LOAD_PATH set to the directory containing the agentx directory).
+configure && make install should do install agentx module into guile site lib.
+Alternatively, you can copy the agentx directory into your guile library
+directory (or export GUILE_LOAD_PATH set to the directory containing the agentx
+directory).
