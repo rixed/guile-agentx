@@ -153,10 +153,14 @@
     (debug "<varbind type ~a, obj-id ~a, data ~a" type obj-id data)
     (list type obj-id data)))
 
-(define (varbind-list n)
-  (if (> n 0)
+(define (varbind-list)
+  (if (eof-object? (peek-char))
     (begin
-      (cons (varbind) (varbind-list (- n 1))))))
+      (debug "No more varbind to read")
+      '())
+    (begin
+      (debug "Read another varbind...")
+      (cons (varbind) (varbind-list)))))
 
 (define (pdu-header-type)
   (case (byte)

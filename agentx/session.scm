@@ -239,6 +239,29 @@
         ((opened)      #t))   ; that's fine
       (throw 'session-error error index))))
 
+(define (handle-test-set session flags sess-id tx-id packet-id payload-len)
+  (if (check-session session sess-id)
+    (let* ((payload (read-chars payload-len '()))
+           (vb-list (with-input-from-string payload
+                      (lambda ()
+                        (debug "Reading varbind list for ~a bytes" payload-len)
+                        (dec:varbind-list)))))
+      (response (session-id session) tx-id packet-id 0 'no-agentx-error 0))))
+
+; We merely ignore commit and cleanup request since we did eveything in handle-test-set
+(define (handle-commit-set session flags sess-id tx-id packet-id payload-len)
+  (if (check-session session sess-id)
+      (response (session-id session) tx-id packet-id 0 'no-agentx-error 0)))
+
+(define (handle-cleanup-set session flags sess-id tx-id packet-id payload-len)
+  (if (check-session session sess-id)
+      (response (session-id session) tx-id packet-id 0 'no-agentx-error 0)))
+
+; So it's always impossible to rollback
+(define (handle-undo-set session flags sess-id tx-id packet-id payload-len)
+  (if (check-session session sess-id)
+      (response (session-id session) tx-id packet-id 0 'undo-failed 1)))
+
 (define (handle-pdu session . expected-type)
   (receive
     (type flags sess-id tx-id packet-id payload-len) (dec:pdu-header)
@@ -247,10 +270,14 @@
       (throw 'session-error "Unexpected answer of wrong type"))
     (with-fluids ((endianness (endianness-of-flags flags)))
                  ((case type
-                    ((get-pdu)      handle-get)
-                    ((get-next-pdu) handle-get-next)
-                    ((get-bulk-pdu) handle-get-bulk)
-                    ((response-pdu) handle-response)
-                    (else           handle-unknown)) session flags sess-id tx-id packet-id payload-len))))
+                    ((get-pdu)         handle-get)
+                    ((get-next-pdu)    handle-get-next)
+                    ((get-bulk-pdu)    handle-get-bulk)
+                    ((response-pdu)    handle-response)
+                    ((test-set-pdu)    handle-test-set)
+                    ((commit-set-pdu)  handle-commit-set)
+                    ((cleanup-set-pdu) handle-cleanup-set)
+                    ((undo-set-pdu)    handle-undo-set)
+                    (else              handle-unknown)) session flags sess-id tx-id packet-id payload-len))))
 
 ; TODO: a mutex in the session to protect the fd (notify must not occur while serving a master agent request)
