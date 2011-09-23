@@ -26,8 +26,8 @@
 (define subagent?          (record-predicate subagent-rtd))
 (define subagent-session   (record-accessor subagent-rtd 'session))
 (define subagent-port      (record-accessor subagent-rtd 'port))
-(define (make-subagent descr tree getters)
-  (let ((session (sess:make-session descr tree getters))
+(define (make-subagent descr tree getters setters)
+  (let ((session (sess:make-session descr tree getters setters))
         (port    (connect-master)))
     (debug "Using port ~a" port)
     ((record-constructor subagent-rtd '(session port)) session port)))
@@ -45,7 +45,7 @@
 ; In order to keep the design simple, we open a new session, without registering any subtree
 (define (notify subagent vars)
   (let* ((descr        (sess:session-descr (subagent-session subagent)))
-         (new-subagent (make-subagent descr '() #()))
+         (new-subagent (make-subagent descr '() #() #()))
          (port         (subagent-port new-subagent))
          (session      (subagent-session new-subagent))
          ; A function like with-current-ioports would be so much better !

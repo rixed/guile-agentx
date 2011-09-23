@@ -25,31 +25,37 @@
 (define sys-uptime-0    '(1 3 6 1 2 1 1 3 0))
 
 ; getters is a procedure returning an list of (oid . procedure), in lexicographical order
-(define session-rtd        (make-record-type "session" '(descr id state subtree getters)))
-(define (make-session descr tree getters)
-  ((record-constructor session-rtd '(descr state subtree getters)) descr 'closed tree getters))
+; likewise, setters is a procedure returning a list of (oid . procedure)
+(define session-rtd        (make-record-type "session" '(descr id state subtree getters setters)))
+(define (make-session descr tree getters setters)
+  ((record-constructor session-rtd '(descr state subtree getters setters)) descr 'closed tree getters setters))
 (define session?           (record-predicate session-rtd))
 (define session-descr      (record-accessor session-rtd 'descr))
 (define session-id         (record-accessor session-rtd 'id))
 (define session-state      (record-accessor session-rtd 'state))
 (define session-subtree    (record-accessor session-rtd 'subtree))
 (define session-getters    (record-accessor session-rtd 'getters))
+(define session-setters    (record-accessor session-rtd 'setters))
 (define set-session-id!    (record-modifier session-rtd 'id))
 (define set-session-state! (record-modifier session-rtd 'state))
 
-; returns the getter function for this oid
+; returns the value for this oid
 (define (session-get session oid)
   (debug "session-get ~a" oid)
-  (letrec ((getters     ((session-getters session)))
-           (find-getter (lambda (getters)
-                          (if (null? getters) (throw 'no-such-oid oid))
-                          (let ((this-oid    (caar getters))
-                                (this-getter (cdar getters)))
-                            (debug "  comparing oid ~a and ~a" oid this-oid)
-                            (if (equal? oid this-oid)
-                              this-getter
-                              (find-getter (cdr getters)))))))
-    (find-getter getters)))
+  (let* ((getters ((session-getters session)))
+         (getter  (assoc-ref getters oid)))
+    (if getter
+        (getter)
+        (throw 'no-such-oid oid))))
+
+; sets the oid to this value
+(define (session-set session oid value)
+  (debug "session-set ~a <- ~a" oid value)
+  (let* ((setters ((session-setters session)))
+         (setter  (assoc-ref setters oid)))
+    (if setter
+        (setter value)
+        (throw 'no-such-oid oid))))
 
 ; if included is false, returns next (oid . getter) (lexicographicaly) after this one
 ; if included is true, returns this (oid. getter) if we have a getter for it, or the next one.
@@ -157,8 +163,7 @@
 ; write the varbind for the given oid
 (define (answer-oid session oid)
   (debug "answer-oid ~a" oid)
-  (let* ((getter (session-get session oid))
-         (result (getter))
+  (let* ((result (session-get session oid))
          (type   (car result))
          (data   (cdr result)))
     (enc:varbind type oid data)))
@@ -196,8 +201,8 @@
 
 (define (read-chars len prevs)
   (if (> len 0)
-    (read-chars (- len 1) (append prevs (list (read-char))))
-    (list->string prevs)))
+    (read-chars (- len 1) (cons (read-char) prevs))
+    (list->string (reverse prevs))))
 
 (define (handle-get session flags sess-id tx-id packet-id payload-len)
   (if (check-session session sess-id)
@@ -241,12 +246,28 @@
 
 (define (handle-test-set session flags sess-id tx-id packet-id payload-len)
   (if (check-session session sess-id)
-    (let* ((payload (read-chars payload-len '()))
-           (vb-list (with-input-from-string payload
-                      (lambda ()
-                        (debug "Reading varbind list for ~a bytes" payload-len)
-                        (dec:varbind-list)))))
-      (response (session-id session) tx-id packet-id 0 'no-agentx-error 0))))
+    (let* ((payload    (read-chars payload-len '()))
+           (vb-list    (with-input-from-string payload
+                         (lambda ()
+                           (debug "Reading varbind list for ~a bytes" payload-len)
+                           (dec:varbind-list))))
+           (first-err  'no-agentx-error)
+           (last-tried 0))
+      (for-each (lambda (vb)
+                  (let ((type  (car vb))
+                        (oid   (cadr vb))
+                        (value (caddr vb)))
+                    (if (eq? first-err 'no-agentx-error)
+                        (catch 'no-such-oid
+                               (lambda ()
+                                 (session-set session oid value)
+                                 (set! last-tried (1+ last-tried)))
+                               (lambda (key oid)
+                                 (set! first-err 'not-writable))))))
+                vb-list)
+      (response (session-id session) tx-id packet-id 0
+                first-err
+                (if (eq? first-err 'no-agentx-error) 0 last-tried)))))
 
 ; We merely ignore commit and cleanup request since we did eveything in handle-test-set
 (define (handle-commit-set session flags sess-id tx-id packet-id payload-len)
