@@ -19,10 +19,11 @@
         error
         skip)
 (use-modules (agentx tools)
-             (ice-9 format))
+             (ice-9 format)
+             (rnrs io ports))
 
 (define (byte)
-  (let ((char (char->integer (read-char))))
+  (let ((char (get-u8 (current-input-port))))
     (debug "< ~2,'0x" char)
     char))
 
@@ -154,7 +155,7 @@
     (list type obj-id data)))
 
 (define (varbind-list)
-  (if (eof-object? (peek-char))
+  (if (eof-object? (lookahead-u8 (current-input-port)))
     (begin
       (debug "No more varbind to read")
       '())

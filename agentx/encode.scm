@@ -18,11 +18,12 @@
         error)
 (use-modules (agentx tools)
              (ice-9 optargs)
-             (ice-9 format))
+             (ice-9 format)
+             (rnrs io ports))
 
 (define (byte b)
   (debug "> ~2,'0x" b)
-  (write-char (integer->char b)))
+  (put-u8 (current-output-port) b))
 
 (define (half-word-big-endian w)
   (let ((b0 (logand #xFF w))
