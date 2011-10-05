@@ -4,7 +4,8 @@ GUILE_LOAD_PATH=./ guile -l example.scm
 ; vim:syntax=scheme expandtab
 ;;; This file implements a simple net-snmp subagent
 
-(use-modules ((agentx net)     :renamer (symbol-prefix-proc 'net:))
+(use-modules (rnrs bytevectors)
+             ((agentx net)     :renamer (symbol-prefix-proc 'net:))
              ((agentx session) :renamer (symbol-prefix-proc 'sess:)))
 
 (define subtree '(1 3 6 1 4 1 18072))
@@ -15,12 +16,12 @@ GUILE_LOAD_PATH=./ guile -l example.scm
 
 (define (getters)
   (list (cons (append subtree '(1 0)) (lambda () `(integer . ,test-number)))
-        (cons (append subtree '(2 0)) (lambda () `(octet-string . ,test-string)))
+        (cons (append subtree '(2 0)) (lambda () `(octet-string . ,(string->utf8 test-string))))
         (cons (append subtree '(3 0)) (lambda () `(counter64 . ,test-big-number)))))
 
 (define (setters)
   (list (cons (append subtree '(1 0)) (lambda (v) (set! test-number v)))
-        (cons (append subtree '(2 0)) (lambda (v) (set! test-string v)))))
+        (cons (append subtree '(2 0)) (lambda (v) (set! test-string (utf8->string v))))))
 
 (define subagent (net:make-subagent "simple" subtree getters setters))
 
@@ -32,6 +33,6 @@ GUILE_LOAD_PATH=./ guile -l example.scm
   (net:notify subagent
     (list (list 'time-ticks sess:sys-uptime-0 12345)
           (list 'object-identifier sess:snmp-trap-oid-0 '(1 3 6 1 4 1 18072 1 0))
-          (list 'octet-string (append subtree '(2 0)) "HELLO!")))
+          (list 'octet-string (append subtree '(2 0)) (string->utf8 "HELLO!"))))
   (loop))
 

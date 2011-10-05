@@ -5,7 +5,7 @@
 (export ignore
         match-prefix
         match-internet-prefix
-        endianness
+        current-endianness
         endianness-of-flags
         oid-compare
         debug?
@@ -40,8 +40,8 @@
 
 (define (match-internet-prefix lst) (match-prefix '(1 3 6 1) lst))
 
-(define endianness (make-fluid))
-(fluid-set! endianness 'big)
+(define current-endianness (make-fluid))
+(fluid-set! current-endianness 'big)
 
 (define (endianness-of-flags flags)
   (if (memq 'network-byte-order flags)

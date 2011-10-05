@@ -5,7 +5,8 @@
 (use-modules ((agentx encode) :renamer (symbol-prefix-proc 'enc:))
              ((agentx decode) :renamer (symbol-prefix-proc 'dec:))
              (agentx tools)
-             (ice-9 receive))
+             (ice-9 receive)
+             (rnrs bytevectors))
 (export snmp-trap-oid-0
         sys-uptime-0
         make-session
@@ -87,7 +88,7 @@
                     (lambda ()
                       (enc:timeout default-timeout)
                       (enc:object-identifier '())
-                      (enc:octet-string descr))))
+                      (enc:octet-string (string->utf8 descr)))))
          (payload-len (string-length payload))
          (packet-id   (next-packet-id)))
     (enc:pdu-header 'open-pdu '() 0 0 packet-id payload-len)
@@ -289,7 +290,7 @@
     (if (and (not (null? expected-type))
              (not (eq? (car expected-type) type)))
       (throw 'session-error "Unexpected answer of wrong type"))
-    (with-fluids ((endianness (endianness-of-flags flags)))
+    (with-fluids ((current-endianness (endianness-of-flags flags)))
                  ((case type
                     ((get-pdu)         handle-get)
                     ((get-next-pdu)    handle-get-next)

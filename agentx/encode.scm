@@ -19,68 +19,39 @@
 (use-modules (agentx tools)
              (ice-9 optargs)
              (ice-9 format)
-             (rnrs io ports))
+             (rnrs io ports)
+             (rnrs bytevectors))
+
+(define (put bv start len)
+  (let ((dummy (make-bytevector len)))
+    (bytevector-copy! bv start dummy 0 len)
+    (debug "> ~a" dummy)
+    (put-bytevector (current-output-port) bv start len)))
+
+(define (put-uint w size)
+  (let ((bv (make-bytevector size)))
+    (case (fluid-ref current-endianness)
+      ((big)    (bytevector-uint-set! bv 0 w (endianness big) size))
+      ((little) (bytevector-uint-set! bv 0 w (endianness little) size)))
+    (put bv 0 size)))
 
 (define (byte b)
-  (debug "> ~2,'0x" b)
-  (put-u8 (current-output-port) b))
-
-(define (half-word-big-endian w)
-  (let ((b0 (logand #xFF w))
-        (b1 (logand #xFF (ash w -8))))
-    (byte b1)
-    (byte b0)))
-
-(define (half-word-little-endian w)
-  (let ((b0 (logand #xFF w))
-        (b1 (logand #xFF (ash w -8))))
-    (byte b0)
-    (byte b1)))
+  (put-uint b 1))
 
 (define (half-word w)
-  ((case (fluid-ref endianness)
-    ((big)    half-word-big-endian)
-    ((little) half-word-little-endian)) w))
-
-(define (word-big-endian w)
-  (let ((b0 (logand #xFFFF w))
-        (b1 (logand #xFFFF (ash w -16))))
-    (half-word b1)
-    (half-word b0)))
-
-(define (word-little-endian w)
-  (let ((b0 (logand #xFFFF w))
-        (b1 (logand #xFFFF (ash w -16))))
-    (half-word b0)
-    (half-word b1)))
+  (put-uint w 2))
 
 (define (word w)
-  ((case (fluid-ref endianness)
-     ((big)    word-big-endian)
-     ((little) word-little-endian)) w))
-
-(define (double-word-big-endian w)
-  (let ((b0 (logand #xFFFFFFFF w))
-        (b1 (logand #xFFFFFFFF (ash w -32))))
-    (word b1)
-    (word b0)))
-
-(define (double-word-little-endian w)
-  (let ((b0 (logand #xFFFFFFFF w))
-        (b1 (logand #xFFFFFFFF (ash w -32))))
-    (word b0)
-    (word b1)))
+  (put-uint w 4))
 
 (define (double-word w)
-  ((case (fluid-ref endianness)
-     ((big)    double-word-big-endian)
-     ((little) double-word-little-endian)) w))
+  (put-uint w 8))
 
 (define (word-list lst)
-  (if (not (null? lst))
-    (let ((w (car lst)))
-      (word w)
-      (word-list (cdr lst)))))
+  (let ((bv (case (fluid-ref current-endianness)
+              ((big)    (uint-list->bytevector lst (endianness big) 4))
+              ((little) (uint-list->bytevector lst (endianness little) 4)))))
+    (put bv 0 (bytevector-length bv))))
 
 (define* (object-identifier lst-id #:optional (include 0))
   (let* ((suffix  (match-internet-prefix lst-id))
@@ -98,25 +69,17 @@
   (object-identifier lst-id1)
   (object-identifier lst-id2))
 
-(define (wstring str)
-  (if (not (string-null? str))
-    (begin
-      (byte (char->integer (string-ref str 0)))
-      (wstring (substring/shared str 1)))))
-
 (define (padd padding)
   (if (not (eqv? 0 padding))
-    (begin
-      (byte 0)
-      (padd (- padding 1)))))
+    (put-uint 0 padding)))
 
-(define (octet-string str)
-  (let* ((len     (string-length str))
+(define (octet-string bv)
+  (let* ((len     (bytevector-length bv))
          (rest    (logand #b11 len))
          (padding (if (eqv? rest 0) 0 (- 4 rest))))
-    (debug ">octet-string ~a" str)
+    (debug ">octet-string ~a" bv)
     (word len)
-    (wstring str)
+    (put bv 0 len)
     (padd padding)))
 
 (define (varbind-type type)
@@ -142,8 +105,8 @@
          ((eq? type 'object-identifier) object-identifier)
          ((memq type '(opaque octet-string)) octet-string)
          ((eq? type 'ip-address) (lambda (data)
-                                   (with-fluids ((endianness 'big))
-                                                (octet-string data))))
+                                   (with-fluids ((current-endianness 'big))
+                                                (word data))))
          (else ignore))
    data))
 
@@ -197,7 +160,7 @@
 
 (define (pdu-header-flags flags)
   (byte (flags->byte
-          (if (eq? (fluid-ref endianness) 'big)
+          (if (eq? (fluid-ref current-endianness) 'big)
             (cons 'network-byte-order flags)
             flags))))
 
@@ -213,7 +176,8 @@
   (word payload-len))
 
 (define (timeout t)
-  (byte t)(byte 0)(half-word 0))
+  (byte t)
+  (put-uint 0 3))
 
 (define (reason r)
   (byte (case r
@@ -224,7 +188,7 @@
           ((shutdown)       5)
           ((by-manager)     6)
           (else (throw 'error "Unknown reason"))))
-  (byte 0)(half-word 0))
+  (put-uint 0 3))
 
 (define (error r)
   (half-word (case r
