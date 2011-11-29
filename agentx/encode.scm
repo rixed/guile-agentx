@@ -1,4 +1,4 @@
-; vim:syntax=scheme expandtab
+; vim:syntax=scheme filetype=scheme expandtab
 ;;; This file implements the various required encoders for AgentX.
 ;;; All encoders write to default output port.
 

@@ -1,4 +1,4 @@
-; vim:syntax=scheme expandtab
+; vim:syntax=scheme filetype=scheme expandtab
 ;;; This file implements agentX subagent, connecting to local master.
 
 (define-module (agentx net))

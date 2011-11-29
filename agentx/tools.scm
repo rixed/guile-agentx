@@ -1,4 +1,4 @@
-; vim:syntax=scheme expandtab
+; vim:syntax=scheme filetype=scheme expandtab
 ;;; This file implements some small tools used here and there
 
 (define-module (agentx tools))

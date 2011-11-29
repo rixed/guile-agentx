@@ -1,4 +1,4 @@
-; vim:syntax=scheme expandtab
+; vim:syntax=scheme filetype=scheme expandtab
 ;;; This file implements agentX protocol.
 
 (define-module (agentx session))

@@ -1,7 +1,7 @@
 #!/bin/sh
+# vim:syntax=scheme filetype=scheme expandtab
 GUILE_LOAD_PATH=./ guile -l example.scm
 !#
-; vim:syntax=scheme expandtab
 ;;; This file implements a simple net-snmp subagent
 
 (use-modules (rnrs bytevectors)

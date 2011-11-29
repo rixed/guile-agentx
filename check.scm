@@ -1,6 +1,6 @@
 #!/usr/bin/env guile
+; vim:syntax=scheme filetype=scheme expandtab
 !#
-; vim:syntax=scheme expandtab
 
 (load "agentx/tools.scm")
 (load "agentx/encode.scm")

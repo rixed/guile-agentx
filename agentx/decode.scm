@@ -1,4 +1,4 @@
-; vim:syntax=scheme expandtab
+; vim:syntax=scheme filetype=scheme expandtab
 ;;; This file implements the various required decoders for AgentX.
 ;;; All decoders read from default input port.
 
