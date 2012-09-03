@@ -195,9 +195,8 @@
     (bytevector-u8-ref bv 0)))
 
 (define (reason)
-  (let ((bv (get-bytevector 4))
-        (r  (bytevector-u8-ref bv 0)))
-    (case r
+  (let ((bv (get-bytevector 4)))
+    (case (bytevector-u8-ref bv 0)
       ((1) 'other)
       ((2) 'parse-error)
       ((3) 'protocol-error)
