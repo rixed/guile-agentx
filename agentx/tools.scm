@@ -8,9 +8,12 @@
         current-endianness
         endianness-of-flags
         oid-compare
+        with-input-from-bytevector
+        with-output-to-bytevector
         debug?
         debug)
-(use-modules (ice-9 format))
+(use-modules (ice-9 format)
+             (rnrs io ports))
 (define debug? #f)
 (use-syntax (ice-9 syncase))
 
@@ -20,7 +23,8 @@
   (let* ((c       (car args))
          (c_nl    (string-append (object->string (current-thread)) c "\n"))
          (args_nl (cons c_nl (cdr args))))
-    (apply format (fdes->outport 2) args_nl))
+    (apply format (fdes->outport 2) args_nl)
+    (force-output (fdes->outport 2)))
   (unlock-mutex format-mutex))
 
 (define-syntax debug
@@ -57,4 +61,24 @@
         (if (eqv? h1 h2)
           (oid-compare (cdr oid1) (cdr oid2))
           (if (< h1 h2) -1 1))))))
+
+; latin1 string input output (like with-input-from-string but ensuring string is made of bytes whatever setlocal was called or not)
+(define (with-input-from-bytevector bv thunk)
+  (let ((old-iport (current-input-port))
+        (bv-iport  (open-bytevector-input-port bv)))
+    (dynamic-wind
+      (lambda () (set-current-input-port bv-iport))
+      thunk
+      (lambda () (set-current-input-port old-iport)))))
+
+(define (with-output-to-bytevector thunk)
+  (call-with-values
+    open-bytevector-output-port
+    (lambda (port get)
+      (let ((old-oport (current-output-port)))
+        (dynamic-wind
+          (lambda () (set-current-output-port port))
+          thunk
+          (lambda () (set-current-output-port old-oport))))
+      (get))))
 

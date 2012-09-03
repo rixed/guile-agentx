@@ -6,6 +6,7 @@
              ((agentx decode) :renamer (symbol-prefix-proc 'dec:))
              (agentx tools)
              (ice-9 receive)
+             (rnrs io ports)
              (rnrs bytevectors))
 (export snmp-trap-oid-0
         sys-uptime-0
@@ -84,46 +85,46 @@
 (define default-timeout 60)
 
 (define (open-pdu descr)
-  (let* ((payload (with-output-to-string
-                    (lambda ()
-                      (enc:timeout default-timeout)
-                      (enc:object-identifier '())
-                      (enc:octet-string (string->utf8 descr)))))
-         (payload-len (string-length payload))
+  (let* ((payload     (with-output-to-bytevector
+                        (lambda ()
+                          (enc:timeout default-timeout)
+                          (enc:object-identifier '())
+                          (enc:octet-string (string->utf8 descr)))))
+         (payload-len (bytevector-length payload))
          (packet-id   (next-packet-id)))
     (enc:pdu-header 'open-pdu '() 0 0 packet-id payload-len)
-    (display payload)))
+    (put-bytevector (current-output-port) payload)))
 
 (define (close-pdu reason session-id)
-  (let* ((payload (with-output-to-string
-                    (lambda ()
-                      (enc:reason reason))))
-         (payload-len (string-length payload))
+  (let* ((payload     (with-output-to-bytevector
+                        (lambda ()
+                          (enc:reason reason))))
+         (payload-len (bytevector-length payload))
          (packet-id   (next-packet-id)))
     (enc:pdu-header 'close-pdu '() session-id 0 packet-id payload-len)
-    (display payload)))
+    (put-bytevector (current-output-port) payload)))
 
 (define (register-pdu ids session-id)
-  (let* ((payload (with-output-to-string
-                    (lambda ()
-                      (enc:byte default-timeout)
-                      (enc:byte 127)
-                      (enc:byte 0)  ; no range_subid
-                      (enc:byte 0)
-                      (enc:object-identifier ids))))
-         (payload-len (string-length payload))
+  (let* ((payload     (with-output-to-bytevector
+                        (lambda ()
+                          (enc:byte default-timeout)
+                          (enc:byte 127)
+                          (enc:byte 0)  ; no range_subid
+                          (enc:byte 0)
+                          (enc:object-identifier ids))))
+         (payload-len (bytevector-length payload))
          (packet-id   (next-packet-id)))
     (enc:pdu-header 'register-pdu '() session-id 0 packet-id payload-len)
-    (display payload)))
+    (put-bytevector (current-output-port) payload)))
 
 (define (notify-pdu vars session-id)
-  (let* ((payload (with-output-to-string
-                    (lambda ()
-                      (enc:varbind-list vars))))
-         (payload-len (string-length payload))
+  (let* ((payload     (with-output-to-bytevector
+                        (lambda ()
+                          (enc:varbind-list vars))))
+         (payload-len (bytevector-length payload))
          (packet-id   (next-packet-id)))
     (enc:pdu-header 'notify-pdu '() session-id 0 packet-id payload-len)
-    (display payload)))
+    (put-bytevector (current-output-port) payload)))
 
 (define (open session)
   (if (not (eq? (session-state session) 'closed))
@@ -192,7 +193,7 @@
 ; read some searchrange and write the corresponding varbind list
 ; current input port must have all the chars ready (and not more)
 (define (foreach-search-ranges func session)
-  (if (not (eof-object? (peek-char)))
+  (if (not (eof-object? (lookahead-u8 (current-input-port))))
     (let* ((range    (dec:search-range))
            (start    (caar range))
            (included (cdar range))
@@ -200,36 +201,34 @@
       (func session start included stop)
       (foreach-search-ranges func session))))
 
-(define (read-chars len prevs)
-  (if (> len 0)
-    (read-chars (- len 1) (cons (read-char) prevs))
-    (list->string (reverse prevs))))
+(define (read-bytes len)
+  (get-bytevector-n (current-input-port) len))
 
 (define (handle-get session flags sess-id tx-id packet-id payload-len)
   (if (check-session session sess-id)
-    (let* ((payload     (read-chars payload-len '()))
-           (varbind-str (with-output-to-string
+    (let* ((payload     (read-bytes payload-len))
+           (varbind-str (with-output-to-bytevector
                           (lambda ()
-                            (with-input-from-string payload
+                            (with-input-from-bytevector payload
                               (lambda ()
                                 (catch 'no-such-oid
                                        (lambda () (foreach-search-ranges get-search-range session))
                                        (lambda (key oid)
                                          (enc:varbind 'no-such-instance oid ""))))))))
-           (varbind-len (string-length varbind-str)))
+           (varbind-len (bytevector-length varbind-str)))
       (response (session-id session) tx-id packet-id varbind-len 'no-agentx-error 0)
-      (display varbind-str))))
+      (put-bytevector (current-output-port) varbind-str))))
 
 (define (handle-get-next session flags sess-id tx-id packet-id payload-len)
   (if (check-session session sess-id)
-    (let* ((payload     (read-chars payload-len '()))
-           (varbind-str (with-output-to-string
+    (let* ((payload     (read-bytes payload-len))
+           (varbind-str (with-output-to-bytevector
                           (lambda ()
-                            (with-input-from-string payload
+                            (with-input-from-bytevector payload
                               (lambda () (foreach-search-ranges get-next-search-range session))))))
-           (varbind-len (string-length varbind-str)))
+           (varbind-len (bytevector-length varbind-str)))
       (response (session-id session) tx-id packet-id varbind-len 'no-agentx-error 0)
-      (display varbind-str))))
+      (put-bytevector (current-output-port) varbind-str))))
 
 (define (handle-response session flags sess-id tx-id packet-id payload-len)
   (let* ((sys-uptime        (dec:word))
@@ -247,8 +246,8 @@
 
 (define (handle-test-set session flags sess-id tx-id packet-id payload-len)
   (if (check-session session sess-id)
-    (let* ((payload    (read-chars payload-len '()))
-           (vb-list    (with-input-from-string payload
+    (let* ((payload    (read-bytes payload-len))
+           (vb-list    (with-input-from-bytevector payload
                          (lambda ()
                            (debug "Reading varbind list for ~a bytes" payload-len)
                            (dec:varbind-list))))
