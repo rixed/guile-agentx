@@ -15,7 +15,6 @@
 (use-modules (ice-9 format)
              (rnrs io ports))
 (define debug? #f)
-(use-syntax (ice-9 syncase))
 
 (define format-mutex (make-mutex))
 (define (format-safe . args)

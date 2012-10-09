@@ -7,9 +7,8 @@
 (load "agentx/decode.scm")
 (load "agentx/session.scm")
 
-(use-syntax (ice-9 syncase)
-            (rnrs io ports)
-            (rnrs bytevectors))
+(use-modules (rnrs io ports)
+             (rnrs bytevectors))
 (define-syntax assert
   (syntax-rules ()
                 ((assert x)
