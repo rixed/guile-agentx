@@ -146,7 +146,7 @@
 
 (define (notify session vars)   ; vars is a list of (type oid data)
   (notify-pdu vars (session-id session)))
- 
+
 (define (response session-id tx-id packet-id varbind-len error-code error-index)
   (enc:pdu-header 'response-pdu '() session-id tx-id packet-id (+ 8 varbind-len))
   (enc:word 0)  ; sysUpTime is ignored by master agent
